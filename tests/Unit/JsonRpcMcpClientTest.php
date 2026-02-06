@@ -262,6 +262,19 @@ final class JsonRpcMcpClientTest extends TestCase
         $this->assertNull($method->invoke($client, []));
     }
 
+    public function test_extract_headers_from_metadata_filters_non_string_entries(): void
+    {
+        $client = new JsonRpcMcpClient;
+        $method = new \ReflectionMethod($client, 'extractHeadersFromMetadata');
+
+        $headers = $method->invoke($client, [
+            'wrapper_data' => ['HTTP/1.1 200 OK', 'Content-Type: application/json', 123],
+        ]);
+
+        $this->assertSame(['HTTP/1.1 200 OK', 'Content-Type: application/json'], $headers);
+        $this->assertNull($method->invoke($client, ['wrapper_data' => 'invalid']));
+    }
+
     private function endpointForJson(array $payload): string
     {
         return 'data://text/plain,'.rawurlencode(json_encode($payload, JSON_UNESCAPED_SLASHES));

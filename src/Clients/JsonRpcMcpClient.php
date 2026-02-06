@@ -206,13 +206,37 @@ final class JsonRpcMcpClient implements McpClient
         });
 
         try {
-            $body = file_get_contents($endpoint, false, $context);
-            $headers = $http_response_header ?? null;
+            $stream = fopen($endpoint, 'r', false, $context);
+
+            if ($stream === false) {
+                return [false, null];
+            }
+
+            $body = stream_get_contents($stream);
+            $metadata = stream_get_meta_data($stream);
+            fclose($stream);
         } finally {
             restore_error_handler();
         }
 
-        return [$body, $this->parseHttpStatusCode($headers)];
+        return [
+            $body === false ? false : $body,
+            $this->parseHttpStatusCode($this->extractHeadersFromMetadata($metadata)),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $metadata
+     * @return list<string>|null
+     */
+    private function extractHeadersFromMetadata(array $metadata): ?array
+    {
+        $wrapperData = $metadata['wrapper_data'] ?? null;
+        if (! is_array($wrapperData)) {
+            return null;
+        }
+
+        return array_values(array_filter($wrapperData, is_string(...)));
     }
 
     /**
