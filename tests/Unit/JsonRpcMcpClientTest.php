@@ -107,6 +107,7 @@ final class JsonRpcMcpClientTest extends TestCase
             $this->fail('Expected exception was not thrown.');
         } catch (RuntimeException $e) {
             $this->assertStringContainsString('Missing or invalid result', $e->getMessage());
+            $this->assertStringContainsString('tools/list', $e->getMessage());
         }
 
         $this->expectException(RuntimeException::class);
@@ -137,9 +138,48 @@ final class JsonRpcMcpClientTest extends TestCase
         $endpoint = $this->endpointForRaw('"hello"');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Invalid JSON-RPC response from MCP endpoint');
+        $this->expectExceptionMessage('expected object, got string');
 
         $client->listTools($endpoint);
+    }
+
+    public function test_it_throws_with_body_preview_for_invalid_json(): void
+    {
+        $client = new JsonRpcMcpClient;
+        $endpoint = $this->endpointForRaw('<html>Not Found</html>');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('<html>Not Found</html>');
+
+        $client->listTools($endpoint);
+    }
+
+    public function test_it_truncates_long_response_body_in_error_message(): void
+    {
+        $client = new JsonRpcMcpClient;
+        $longBody = str_repeat('x', 300);
+        $endpoint = $this->endpointForRaw($longBody);
+
+        try {
+            $client->listTools($endpoint);
+            $this->fail('Expected exception was not thrown.');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('... (truncated)', $e->getMessage());
+        }
+    }
+
+    public function test_missing_result_error_includes_endpoint_and_body(): void
+    {
+        $client = new JsonRpcMcpClient;
+        $endpoint = $this->endpointForJson(['jsonrpc' => '2.0']);
+
+        try {
+            $client->listTools($endpoint);
+            $this->fail('Expected exception was not thrown.');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('data://', $e->getMessage());
+            $this->assertStringContainsString('"jsonrpc"', $e->getMessage());
+        }
     }
 
     public function test_it_retries_transport_errors_and_succeeds(): void
@@ -208,6 +248,18 @@ final class JsonRpcMcpClientTest extends TestCase
         } finally {
             $this->assertSame(2, RetryMockStream::calls('fail'));
         }
+    }
+
+    public function test_parse_http_status_code_extracts_code_from_headers(): void
+    {
+        $client = new JsonRpcMcpClient;
+        $method = new \ReflectionMethod($client, 'parseHttpStatusCode');
+
+        $this->assertSame(200, $method->invoke($client, ['HTTP/1.1 200 OK']));
+        $this->assertSame(404, $method->invoke($client, ['HTTP/1.1 404 Not Found']));
+        $this->assertNull($method->invoke($client, ['InvalidHeader']));
+        $this->assertNull($method->invoke($client, null));
+        $this->assertNull($method->invoke($client, []));
     }
 
     private function endpointForJson(array $payload): string

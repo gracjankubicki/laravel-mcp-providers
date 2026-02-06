@@ -157,16 +157,26 @@ final class JsonRpcMcpClient implements McpClient
             ],
         ]);
 
-        $responseBody = $this->readEndpoint($endpoint, $context);
+        [$responseBody, $statusCode] = $this->readEndpoint($endpoint, $context);
 
         if ($responseBody === false) {
             throw McpException::transport($endpoint);
         }
 
-        $decoded = json_decode($responseBody, true, 512, JSON_THROW_ON_ERROR);
+        $statusSuffix = $statusCode !== null ? ' (HTTP '.$statusCode.')' : '';
+
+        try {
+            $decoded = json_decode($responseBody, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $e) {
+            throw McpException::invalidResponse(
+                'Invalid JSON response from ['.$endpoint.']'.$statusSuffix.': '.$this->truncateBody($responseBody)
+            );
+        }
 
         if (! is_array($decoded)) {
-            throw McpException::invalidResponse('Invalid JSON-RPC response from MCP endpoint: '.$endpoint);
+            throw McpException::invalidResponse(
+                'Invalid JSON-RPC response from ['.$endpoint.']'.$statusSuffix.': expected object, got '.gettype($decoded).'.'
+            );
         }
 
         if (isset($decoded['error'])) {
@@ -179,23 +189,56 @@ final class JsonRpcMcpClient implements McpClient
 
         if (! array_key_exists('result', $decoded) || ! is_array($decoded['result'])) {
             throw McpException::invalidResponse(
-                'Missing or invalid result in JSON-RPC response for ['.$method.'].'
+                'Missing or invalid result in JSON-RPC response for ['.$method.'] from ['.$endpoint.']'.$statusSuffix.': '.$this->truncateBody($responseBody)
             );
         }
 
         return $decoded['result'];
     }
 
-    private function readEndpoint(string $endpoint, mixed $context): string|false
+    /**
+     * @return array{string|false, int|null}
+     */
+    private function readEndpoint(string $endpoint, mixed $context): array
     {
         set_error_handler(static function (): bool {
             return true;
         });
 
         try {
-            return file_get_contents($endpoint, false, $context);
+            $body = file_get_contents($endpoint, false, $context);
+            $headers = $http_response_header ?? null;
         } finally {
             restore_error_handler();
         }
+
+        return [$body, $this->parseHttpStatusCode($headers)];
+    }
+
+    /**
+     * @param  list<string>|null  $headers
+     */
+    private function parseHttpStatusCode(?array $headers): ?int
+    {
+        if ($headers === null || $headers === []) {
+            return null;
+        }
+
+        if (preg_match('/^HTTP\/\S+\s+(\d{3})/', $headers[0], $matches)) {
+            return (int) $matches[1];
+        }
+
+        return null;
+    }
+
+    private function truncateBody(string $body, int $limit = 200): string
+    {
+        $body = trim($body);
+
+        if (strlen($body) <= $limit) {
+            return $body;
+        }
+
+        return substr($body, 0, $limit).'... (truncated)';
     }
 }

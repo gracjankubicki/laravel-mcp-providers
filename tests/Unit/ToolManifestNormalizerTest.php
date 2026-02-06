@@ -115,4 +115,23 @@ final class ToolManifestNormalizerTest extends TestCase
 
         $this->assertArrayHasKey('a', $manifest['tools'][0]['input_schema']['properties']);
     }
+
+    public function test_it_returns_empty_schema_when_neither_key_exists(): void
+    {
+        $normalizer = new ToolManifestNormalizer;
+
+        $manifest = $normalizer->normalize(
+            serverSlug: 'crm',
+            endpointEnv: null,
+            tools: [
+                [
+                    'name' => 'no_schema_tool',
+                    'description' => 'No schema',
+                ],
+            ],
+            generatedAt: '2026-02-06T12:00:00Z',
+        );
+
+        $this->assertSame([], $manifest['tools'][0]['input_schema']);
+    }
 }
