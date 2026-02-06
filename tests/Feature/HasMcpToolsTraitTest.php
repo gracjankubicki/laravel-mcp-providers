@@ -69,6 +69,21 @@ final class HasMcpToolsTraitTest extends TestCase
         ], array_map(static fn (object $tool): string => $tool::class, $tools));
     }
 
+    public function test_trait_uses_all_servers_when_mcp_servers_is_not_overridden(): void
+    {
+        $this->configureManifests();
+        $this->defineGeneratedClasses();
+
+        $agent = new TraitDefaultServersAgent;
+        $tools = iterator_to_array($agent->tools(), false);
+
+        $this->assertSame([
+            'Tests\\GeneratedTrait\\Gdocs\\GdocsListDocsTool',
+            'Tests\\GeneratedTrait\\Gdocs\\GdocsSearchDocsTool',
+            'Tests\\GeneratedTrait\\N8n\\N8nRunWorkflowTool',
+        ], array_map(static fn (object $tool): string => $tool::class, $tools));
+    }
+
     private function configureManifests(): void
     {
         $gdocsManifest = $this->workspace.'/gdocs.tools.json';
@@ -153,6 +168,11 @@ final class TraitAllToolsAgent
     {
         return ['gdocs', 'n8n'];
     }
+}
+
+final class TraitDefaultServersAgent
+{
+    use HasMcpTools;
 }
 
 final class TraitOnlyToolsAgent

@@ -1,15 +1,13 @@
 # MCP Providers for Laravel AI
 
-![MCP Providers Logo](docs/assets/logo.svg)
-
-[![Latest Version on Packagist](https://img.shields.io/packagist/v/gracjankubicki/mcp-providers.svg?label=packagist)](https://packagist.org/packages/gracjankubicki/mcp-providers)
-[![PHP Version](https://img.shields.io/packagist/php-v/gracjankubicki/mcp-providers.svg)](https://packagist.org/packages/gracjankubicki/mcp-providers)
+[![Latest Version on Packagist](https://img.shields.io/packagist/v/gracjankubicki/laravel-mcp-providers.svg?label=packagist)](https://packagist.org/packages/gracjankubicki/laravel-mcp-providers)
+[![PHP Version](https://img.shields.io/packagist/php-v/gracjankubicki/laravel-mcp-providers.svg)](https://packagist.org/packages/gracjankubicki/laravel-mcp-providers)
 [![Laravel](https://img.shields.io/badge/Laravel-12.x-FF2D20.svg)](https://laravel.com)
-[![License](https://img.shields.io/packagist/l/gracjankubicki/mcp-providers.svg)](LICENSE)
-[![Tests](https://img.shields.io/github/actions/workflow/status/gracjankubicki/mcp-providers/tests.yml?label=tests)](https://github.com/gracjankubicki/mcp-providers/actions/workflows/tests.yml)
+[![License](https://img.shields.io/packagist/l/gracjankubicki/laravel-mcp-providers.svg)](LICENSE)
+[![Tests](https://img.shields.io/github/actions/workflow/status/gracjankubicki/laravel-mcp-providers/tests.yml?label=tests)](https://github.com/gracjankubicki/laravel-mcp-providers/actions/workflows/tests.yml)
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)](composer.json)
 
-`gracjankubicki/mcp-providers` integrates external MCP servers with [laravel/ai](https://github.com/laravel/ai) using a class-first tools workflow.
+`gracjankubicki/laravel-mcp-providers` integrates external MCP servers with [laravel/ai](https://github.com/laravel/ai) using a class-first tools workflow.
 
 ## Why this package
 
@@ -28,7 +26,7 @@
 ## Installation
 
 ```bash
-composer require gracjankubicki/mcp-providers
+composer require gracjankubicki/laravel-mcp-providers
 ```
 
 Publish config:

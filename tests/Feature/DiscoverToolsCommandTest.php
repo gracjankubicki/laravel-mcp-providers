@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Str;
 use Laravel\McpProviders\Auth\HeaderAuthStrategy;
 use Laravel\McpProviders\Contracts\McpClient;
@@ -268,6 +269,76 @@ final class DiscoverToolsCommandTest extends TestCase
         $this->artisan('ai-mcp:discover --server=keep --prune')->assertExitCode(0);
 
         $this->assertFileExists($keepManifest);
+    }
+
+    public function test_it_fails_when_manifest_write_returns_false(): void
+    {
+        $manifest = $this->workspace.'/gdocs.tools.json';
+
+        $client = new FakeMcpClient;
+        $client->toolsByEndpoint['http://example.test/mcp'] = [];
+        $this->app->instance(McpClient::class, $client);
+
+        $fakeFilesystem = new class extends Filesystem
+        {
+            public function put($path, $contents, $lock = false): int|bool
+            {
+                return false;
+            }
+        };
+        $this->app->instance(Filesystem::class, $fakeFilesystem);
+
+        $this->app['config']->set('mcp-providers.servers', [
+            'gdocs' => [
+                'endpoint' => 'http://example.test/mcp',
+                'manifest' => $manifest,
+            ],
+        ]);
+
+        $this->artisan('ai-mcp:discover --fail-fast')->assertExitCode(1);
+    }
+
+    public function test_it_fails_when_directory_creation_returns_false(): void
+    {
+        $manifest = $this->workspace.'/missing-dir/gdocs.tools.json';
+        $missingDirectory = dirname($manifest);
+
+        $client = new FakeMcpClient;
+        $client->toolsByEndpoint['http://example.test/mcp'] = [];
+        $this->app->instance(McpClient::class, $client);
+
+        $fakeFilesystem = new class($missingDirectory) extends Filesystem
+        {
+            public function __construct(private readonly string $blockedDirectory) {}
+
+            public function isDirectory($directory): bool
+            {
+                if ($directory === $this->blockedDirectory) {
+                    return false;
+                }
+
+                return parent::isDirectory($directory);
+            }
+
+            public function makeDirectory($path, $mode = 0755, $recursive = false, $force = false): bool
+            {
+                if ($path === $this->blockedDirectory) {
+                    return false;
+                }
+
+                return parent::makeDirectory($path, $mode, $recursive, $force);
+            }
+        };
+        $this->app->instance(Filesystem::class, $fakeFilesystem);
+
+        $this->app['config']->set('mcp-providers.servers', [
+            'gdocs' => [
+                'endpoint' => 'http://example.test/mcp',
+                'manifest' => $manifest,
+            ],
+        ]);
+
+        $this->artisan('ai-mcp:discover --fail-fast')->assertExitCode(1);
     }
 
     private function deleteDirectory(string $directory): void

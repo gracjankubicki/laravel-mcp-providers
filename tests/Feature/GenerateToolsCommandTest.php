@@ -4,7 +4,14 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use Illuminate\Console\OutputStyle;
+use Illuminate\Contracts\Filesystem\FileNotFoundException;
+use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Str;
+use Laravel\McpProviders\Commands\GenerateToolsCommand;
+use ReflectionMethod;
+use Symfony\Component\Console\Input\ArrayInput;
+use Symfony\Component\Console\Output\BufferedOutput;
 use Tests\TestCase;
 
 final class GenerateToolsCommandTest extends TestCase
@@ -383,6 +390,214 @@ final class GenerateToolsCommandTest extends TestCase
             chmod($directory, 0755);
             $this->deleteDirectory($generatedPath);
         }
+    }
+
+    public function test_it_fails_when_manifest_read_throws_file_not_found_exception(): void
+    {
+        $manifest = $this->workspace.'/broken.tools.json';
+
+        $this->app['config']->set('mcp-providers.servers', [
+            'gdocs' => ['manifest' => $manifest, 'endpoint' => 'http://127.0.0.1:9999'],
+        ]);
+        $this->app['config']->set('mcp-providers.generated.path', $this->workspace.'/generated');
+        $this->app['config']->set('mcp-providers.generated.namespace', 'App\\Ai\\Tools\\Generated');
+
+        $fakeFilesystem = new class($manifest) extends Filesystem
+        {
+            public function __construct(private readonly string $manifestPath) {}
+
+            public function isFile($file): bool
+            {
+                if ($file === $this->manifestPath) {
+                    return true;
+                }
+
+                return parent::isFile($file);
+            }
+
+            public function get($path, $lock = false): string
+            {
+                if ($path === $this->manifestPath) {
+                    throw new FileNotFoundException('missing');
+                }
+
+                return parent::get($path, $lock);
+            }
+        };
+        $this->app->instance(Filesystem::class, $fakeFilesystem);
+
+        $this->artisan('ai-mcp:generate')->assertExitCode(1);
+    }
+
+    public function test_it_fails_when_generated_file_write_returns_false(): void
+    {
+        $manifest = $this->workspace.'/gdocs.tools.json';
+        $generatedPath = $this->workspace.'/generated';
+
+        $this->writeManifest($manifest, [[
+            'name' => 'search_docs',
+            'description' => 'Search docs',
+            'input_schema' => ['type' => 'object', 'properties' => []],
+        ]]);
+        $this->app['config']->set('mcp-providers.servers', [
+            'gdocs' => ['manifest' => $manifest, 'endpoint' => 'http://127.0.0.1:9999'],
+        ]);
+        $this->app['config']->set('mcp-providers.generated.path', $generatedPath);
+        $this->app['config']->set('mcp-providers.generated.namespace', 'App\\Ai\\Tools\\Generated');
+
+        $fakeFilesystem = new class extends Filesystem
+        {
+            public function put($path, $contents, $lock = false): int|bool
+            {
+                if (str_ends_with((string) $path, '.php')) {
+                    return false;
+                }
+
+                return parent::put($path, $contents, $lock);
+            }
+        };
+        $this->app->instance(Filesystem::class, $fakeFilesystem);
+
+        $this->artisan('ai-mcp:generate')->assertExitCode(1);
+    }
+
+    public function test_clean_continues_when_aggregate_toolset_delete_throws(): void
+    {
+        $manifest = $this->workspace.'/gdocs.tools.json';
+        $generatedPath = $this->workspace.'/generated';
+        $aggregateToolset = $generatedPath.'/McpToolset.php';
+        mkdir($generatedPath, 0755, true);
+        file_put_contents($aggregateToolset, '<?php');
+
+        $this->writeManifest($manifest, []);
+        $this->app['config']->set('mcp-providers.servers', [
+            'gdocs' => ['manifest' => $manifest, 'endpoint' => 'http://127.0.0.1:9999'],
+        ]);
+        $this->app['config']->set('mcp-providers.generated.path', $generatedPath);
+        $this->app['config']->set('mcp-providers.generated.namespace', 'App\\Ai\\Tools\\Generated');
+
+        $fakeFilesystem = new class($aggregateToolset) extends Filesystem
+        {
+            public function __construct(private readonly string $aggregateToolsetPath) {}
+
+            public function delete($paths): bool
+            {
+                if ($paths === $this->aggregateToolsetPath) {
+                    throw new \RuntimeException('cannot delete aggregate');
+                }
+
+                return parent::delete($paths);
+            }
+        };
+        $this->app->instance(Filesystem::class, $fakeFilesystem);
+
+        $this->artisan('ai-mcp:generate --clean')->assertExitCode(0);
+    }
+
+    public function test_it_fails_when_make_directory_returns_false(): void
+    {
+        $manifest = $this->workspace.'/gdocs.tools.json';
+        $generatedPath = $this->workspace.'/generated';
+        $blockedDirectory = $generatedPath.'/Gdocs';
+
+        $this->writeManifest($manifest, [[
+            'name' => 'search_docs',
+            'description' => 'Search docs',
+            'input_schema' => ['type' => 'object', 'properties' => []],
+        ]]);
+        $this->app['config']->set('mcp-providers.servers', [
+            'gdocs' => ['manifest' => $manifest, 'endpoint' => 'http://127.0.0.1:9999'],
+        ]);
+        $this->app['config']->set('mcp-providers.generated.path', $generatedPath);
+        $this->app['config']->set('mcp-providers.generated.namespace', 'App\\Ai\\Tools\\Generated');
+
+        $fakeFilesystem = new class($blockedDirectory) extends Filesystem
+        {
+            public function __construct(private readonly string $blockedDirectory) {}
+
+            public function isDirectory($directory): bool
+            {
+                if ($directory === $this->blockedDirectory) {
+                    return false;
+                }
+
+                return parent::isDirectory($directory);
+            }
+
+            public function makeDirectory($path, $mode = 0755, $recursive = false, $force = false): bool
+            {
+                if ($path === $this->blockedDirectory) {
+                    return false;
+                }
+
+                return parent::makeDirectory($path, $mode, $recursive, $force);
+            }
+        };
+        $this->app->instance(Filesystem::class, $fakeFilesystem);
+
+        $this->artisan('ai-mcp:generate')->assertExitCode(1);
+    }
+
+    public function test_internal_toolset_generation_skips_empty_server_bucket(): void
+    {
+        $command = $this->app->make(GenerateToolsCommand::class);
+        $command->setOutput(new OutputStyle(new ArrayInput([]), new BufferedOutput));
+
+        $method = new ReflectionMethod(GenerateToolsCommand::class, 'generateToolsetClasses');
+        $method->setAccessible(true);
+
+        $result = $method->invoke(
+            $command,
+            'App\\Ai\\Tools\\Generated',
+            $this->workspace.'/generated',
+            [
+                'empty' => [],
+                'gdocs' => ['App\\Ai\\Tools\\Generated\\Gdocs\\GdocsSearchDocsTool'],
+            ],
+            ['App\\Ai\\Tools\\Generated\\Gdocs\\GdocsSearchDocsTool'],
+            true,
+            true,
+        );
+
+        $this->assertSame(2, $result);
+    }
+
+    public function test_internal_toolset_name_resolution_handles_multiple_collisions(): void
+    {
+        $command = $this->app->make(GenerateToolsCommand::class);
+        $command->setOutput(new OutputStyle(new ArrayInput([]), new BufferedOutput));
+
+        $method = new ReflectionMethod(GenerateToolsCommand::class, 'resolveToolsetClassName');
+        $method->setAccessible(true);
+
+        $baseName = 'DupToolset';
+        $hash = substr(md5('dup'), 0, 8);
+        $hashedName = $baseName.$hash;
+        $usedClassNames = [
+            $baseName => true,
+            $hashedName => true,
+            $hashedName.'2' => true,
+        ];
+
+        $resolved = $method->invokeArgs($command, ['dup', &$usedClassNames, true]);
+
+        $this->assertSame($hashedName.'3', $resolved);
+    }
+
+    public function test_internal_toolset_name_resolution_can_fail_on_collision(): void
+    {
+        $command = $this->app->make(GenerateToolsCommand::class);
+        $command->setOutput(new OutputStyle(new ArrayInput([]), new BufferedOutput));
+
+        $method = new ReflectionMethod(GenerateToolsCommand::class, 'resolveToolsetClassName');
+        $method->setAccessible(true);
+
+        $usedClassNames = ['DupToolset' => true];
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Toolset class name collision detected');
+
+        $method->invokeArgs($command, ['dup', &$usedClassNames, false]);
     }
 
     /**
