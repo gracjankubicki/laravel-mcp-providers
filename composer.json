@@ -1,0 +1,54 @@
+{
+    "name": "laravel/mcp-providers",
+    "description": "External MCP providers integration for Laravel AI SDK.",
+    "keywords": [
+        "laravel",
+        "ai",
+        "mcp",
+        "providers"
+    ],
+    "homepage": "https://github.com/laravel/mcp-providers",
+    "license": "MIT",
+    "require": {
+        "php": "^8.5",
+        "illuminate/console": "^12.0",
+        "illuminate/contracts": "^12.0",
+        "illuminate/support": "^12.0",
+        "laravel/ai": "^0.1.2"
+    },
+    "require-dev": {
+        "laravel/pint": "^1.26",
+        "orchestra/testbench": "^10.6"
+    },
+    "autoload": {
+        "psr-4": {
+            "Laravel\\McpProviders\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Laravel\\McpProviders\\McpProvidersServiceProvider"
+            ]
+        }
+    },
+    "scripts": {
+        "test": "vendor/bin/phpunit -c phpunit.xml",
+        "lint": "vendor/bin/pint --test",
+        "format": "vendor/bin/pint",
+        "test:coverage": [
+            "vendor/bin/phpunit -c phpunit.xml --coverage-clover coverage.xml --coverage-filter src",
+            "@php scripts/check-coverage.php coverage.xml 100"
+        ]
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
