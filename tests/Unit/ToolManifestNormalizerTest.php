@@ -59,4 +59,60 @@ final class ToolManifestNormalizerTest extends TestCase
 
         $this->assertSame(['slug' => 'n8n'], $manifest['server']);
     }
+
+    public function test_it_accepts_camel_case_input_schema_from_mcp_protocol(): void
+    {
+        $normalizer = new ToolManifestNormalizer;
+
+        $manifest = $normalizer->normalize(
+            serverSlug: 'crm',
+            endpointEnv: null,
+            tools: [
+                [
+                    'name' => 'search_tool',
+                    'description' => 'Search',
+                    'inputSchema' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'query' => ['type' => 'string'],
+                        ],
+                        'required' => ['query'],
+                    ],
+                ],
+            ],
+            generatedAt: '2026-02-06T12:00:00Z',
+        );
+
+        $schema = $manifest['tools'][0]['input_schema'];
+        $this->assertSame('object', $schema['type']);
+        $this->assertArrayHasKey('properties', $schema);
+        $this->assertSame(['type' => 'string'], $schema['properties']['query']);
+    }
+
+    public function test_snake_case_input_schema_takes_precedence_over_camel_case(): void
+    {
+        $normalizer = new ToolManifestNormalizer;
+
+        $manifest = $normalizer->normalize(
+            serverSlug: 'crm',
+            endpointEnv: null,
+            tools: [
+                [
+                    'name' => 'dual_tool',
+                    'description' => 'Dual',
+                    'input_schema' => [
+                        'type' => 'object',
+                        'properties' => ['a' => ['type' => 'string']],
+                    ],
+                    'inputSchema' => [
+                        'type' => 'object',
+                        'properties' => ['b' => ['type' => 'integer']],
+                    ],
+                ],
+            ],
+            generatedAt: '2026-02-06T12:00:00Z',
+        );
+
+        $this->assertArrayHasKey('a', $manifest['tools'][0]['input_schema']['properties']);
+    }
 }

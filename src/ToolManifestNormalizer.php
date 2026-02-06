@@ -26,7 +26,7 @@ final class ToolManifestNormalizer
                     ? $tool['description']
                     : $name,
                 'input_schema' => $this->normalizeSchema(
-                    isset($tool['input_schema']) && is_array($tool['input_schema']) ? $tool['input_schema'] : []
+                    $this->extractInputSchema($tool)
                 ),
             ];
         }, $tools);
@@ -42,6 +42,23 @@ final class ToolManifestNormalizer
             'generated_at' => $generatedAt,
             'tools' => $normalizedTools,
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $tool
+     * @return array<string, mixed>
+     */
+    private function extractInputSchema(array $tool): array
+    {
+        if (isset($tool['input_schema']) && is_array($tool['input_schema'])) {
+            return $tool['input_schema'];
+        }
+
+        if (isset($tool['inputSchema']) && is_array($tool['inputSchema'])) {
+            return $tool['inputSchema'];
+        }
+
+        return [];
     }
 
     /**

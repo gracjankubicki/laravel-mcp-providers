@@ -87,6 +87,43 @@ final class DiscoverToolsCommandTest extends TestCase
         $this->assertSame(1200, $client->listCalls[0]['retry_max_backoff_ms']);
     }
 
+    public function test_it_discovers_tools_with_camel_case_input_schema(): void
+    {
+        $manifest = $this->workspace.'/crm.tools.json';
+
+        $client = new FakeMcpClient;
+        $client->toolsByEndpoint['http://example.test/mcp'] = [
+            [
+                'name' => 'search_tool',
+                'description' => 'Search',
+                'inputSchema' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'query' => ['type' => 'string'],
+                    ],
+                    'required' => ['query'],
+                ],
+            ],
+        ];
+
+        $this->app->instance(McpClient::class, $client);
+        $this->app['config']->set('mcp-providers.servers', [
+            'crm' => [
+                'endpoint' => 'http://example.test/mcp',
+                'manifest' => $manifest,
+            ],
+        ]);
+
+        $this->artisan('ai-mcp:discover')->assertExitCode(0);
+
+        $this->assertFileExists($manifest);
+        $decoded = json_decode((string) file_get_contents($manifest), true);
+
+        $this->assertIsArray($decoded);
+        $this->assertSame('object', $decoded['tools'][0]['input_schema']['type']);
+        $this->assertArrayHasKey('query', $decoded['tools'][0]['input_schema']['properties']);
+    }
+
     public function test_dry_run_does_not_write_manifest_file(): void
     {
         $manifest = $this->workspace.'/gdocs.tools.json';

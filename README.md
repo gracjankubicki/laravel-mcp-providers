@@ -1,5 +1,7 @@
 # MCP Providers for Laravel AI
 
+![Laravel MCP Providers Logo](docs/assets/logo.svg)
+
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/gracjankubicki/laravel-mcp-providers.svg?label=packagist)](https://packagist.org/packages/gracjankubicki/laravel-mcp-providers)
 [![Total Downloads](https://img.shields.io/packagist/dt/gracjankubicki/laravel-mcp-providers.svg)](https://packagist.org/packages/gracjankubicki/laravel-mcp-providers)
 [![PHP Version](https://img.shields.io/packagist/php-v/gracjankubicki/laravel-mcp-providers.svg)](https://packagist.org/packages/gracjankubicki/laravel-mcp-providers)
