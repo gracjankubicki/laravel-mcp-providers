@@ -37,7 +37,7 @@ final class HealthCheckCommandTest extends TestCase
         $client->toolsByEndpoint['http://example.test/mcp'] = [['name' => 'search_docs']];
         $this->app->instance(McpClient::class, $client);
 
-        $this->app['config']->set('ai-mcp.servers', [
+        $this->app['config']->set('mcp-providers.servers', [
             'gdocs' => [
                 'endpoint' => 'http://example.test/mcp',
                 'retry' => ['attempts' => 3, 'backoff_ms' => 120, 'max_backoff_ms' => 800],
@@ -56,7 +56,7 @@ final class HealthCheckCommandTest extends TestCase
         $client->errorsByEndpoint['http://example.test/mcp'] = new RuntimeException('boom');
         $this->app->instance(McpClient::class, $client);
 
-        $this->app['config']->set('ai-mcp.servers', [
+        $this->app['config']->set('mcp-providers.servers', [
             'gdocs' => ['endpoint' => 'http://example.test/mcp'],
         ]);
 
@@ -70,7 +70,7 @@ final class HealthCheckCommandTest extends TestCase
         $client->toolsByEndpoint['http://example.test/second'] = [];
         $this->app->instance(McpClient::class, $client);
 
-        $this->app['config']->set('ai-mcp.servers', [
+        $this->app['config']->set('mcp-providers.servers', [
             'first' => ['endpoint' => 'http://example.test/first'],
             'second' => ['endpoint' => 'http://example.test/second'],
         ]);
@@ -81,7 +81,7 @@ final class HealthCheckCommandTest extends TestCase
 
     public function test_it_fails_for_missing_endpoint_or_unknown_server(): void
     {
-        $this->app['config']->set('ai-mcp.servers', [
+        $this->app['config']->set('mcp-providers.servers', [
             'gdocs' => ['manifest' => $this->workspace.'/gdocs.tools.json'],
         ]);
 
@@ -91,7 +91,7 @@ final class HealthCheckCommandTest extends TestCase
 
     public function test_it_returns_success_when_no_servers_selected(): void
     {
-        $this->app['config']->set('ai-mcp.servers', []);
+        $this->app['config']->set('mcp-providers.servers', []);
 
         $this->artisan('ai-mcp:health')->assertExitCode(0);
     }

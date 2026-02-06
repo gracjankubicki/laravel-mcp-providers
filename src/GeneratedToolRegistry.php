@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Laravel\McpProviders;
 
 use Illuminate\Contracts\Container\Container;
+use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Str;
 use Laravel\McpProviders\Generation\ToolClassNameResolver;
 use RuntimeException;
+use Throwable;
 
 final class GeneratedToolRegistry
 {
@@ -15,16 +17,17 @@ final class GeneratedToolRegistry
         private readonly Container $container,
         private readonly ConfigServerRepository $servers,
         private readonly ToolClassNameResolver $classNameResolver,
+        private readonly Filesystem $files,
     ) {}
 
     /**
      * @param  list<string>|null  $servers
-     * @param  list<string>|array<string, list<string>>|null  $toolAllowlist
+     * @param  array<int|string, mixed>|null  $toolClasses
      * @return iterable<object>
      */
-    public function forServers(?array $servers = null, ?array $toolAllowlist = null): iterable
+    public function forServers(?array $servers = null, ?array $toolClasses = null): iterable
     {
-        foreach ($this->classNamesForServers($servers, $toolAllowlist) as $className) {
+        foreach ($this->classNamesForServers($servers, $toolClasses) as $className) {
             if (! class_exists($className)) {
                 throw new RuntimeException(
                     'Generated tool class ['.$className.'] was not found. Run `php artisan ai-mcp:generate`.'
@@ -37,27 +40,28 @@ final class GeneratedToolRegistry
 
     /**
      * @param  list<string>|null  $servers
-     * @param  list<string>|array<string, list<string>>|null  $toolAllowlist
+     * @param  array<int|string, mixed>|null  $toolClasses
      * @return list<string>
      */
-    private function classNamesForServers(?array $servers = null, ?array $toolAllowlist = null): array
+    private function classNamesForServers(?array $servers = null, ?array $toolClasses = null): array
     {
         $serverConfigs = $this->servers->selected($servers ?? []);
 
         ksort($serverConfigs);
 
         $baseNamespace = trim(
-            (string) config('ai-mcp.generated.namespace', 'App\\Ai\\Tools\\Generated'),
+            (string) config('mcp-providers.generated.namespace', 'App\\Ai\\Tools\\Generated'),
             '\\'
         );
 
+        $allowedClasses = $this->allowedClassesMap($toolClasses);
         $usedClassNames = [];
         $classNames = [];
 
         foreach ($serverConfigs as $serverSlug => $serverConfig) {
             $manifestPath = $serverConfig['manifest'] ?? null;
 
-            if (! is_string($manifestPath) || ! is_file($manifestPath)) {
+            if (! is_string($manifestPath) || ! $this->files->isFile($manifestPath)) {
                 continue;
             }
 
@@ -80,12 +84,14 @@ final class GeneratedToolRegistry
                     continue;
                 }
 
-                if (! $this->isToolAllowed($serverSlug, $tool['name'], $toolAllowlist)) {
+                $className = $this->classNameResolver->resolve($serverSlug, $tool['name'], $usedClassNames);
+                $fqcn = $baseNamespace.'\\'.Str::studly($serverSlug).'\\'.$className;
+
+                if (! $this->isToolAllowed($fqcn, $allowedClasses)) {
                     continue;
                 }
 
-                $className = $this->classNameResolver->resolve($serverSlug, $tool['name'], $usedClassNames);
-                $classNames[] = $baseNamespace.'\\'.Str::studly($serverSlug).'\\'.$className;
+                $classNames[] = $fqcn;
             }
         }
 
@@ -97,9 +103,9 @@ final class GeneratedToolRegistry
      */
     private function decodeManifest(string $manifestPath): array
     {
-        $contents = @file_get_contents($manifestPath);
-
-        if ($contents === false) {
+        try {
+            $contents = $this->files->get($manifestPath);
+        } catch (Throwable) {
             return [];
         }
 
@@ -109,24 +115,37 @@ final class GeneratedToolRegistry
     }
 
     /**
-     * @param  list<string>|array<string, list<string>>|null  $toolAllowlist
+     * @param  array<string, true>|null  $allowedClasses
      */
-    private function isToolAllowed(string $serverSlug, string $toolName, ?array $toolAllowlist): bool
+    private function isToolAllowed(string $className, ?array $allowedClasses): bool
     {
-        if ($toolAllowlist === null || $toolAllowlist === []) {
+        if ($allowedClasses === null) {
             return true;
         }
 
-        if (array_is_list($toolAllowlist)) {
-            return in_array($serverSlug.'.'.$toolName, $toolAllowlist, true);
+        return isset($allowedClasses[$className]);
+    }
+
+    /**
+     * @param  array<int|string, mixed>|null  $toolClasses
+     * @return array<string, true>|null
+     */
+    private function allowedClassesMap(?array $toolClasses): ?array
+    {
+        if ($toolClasses === null || $toolClasses === []) {
+            return null;
         }
 
-        $allowedForServer = $toolAllowlist[$serverSlug] ?? [];
+        $allowed = [];
 
-        if (! is_array($allowedForServer)) {
-            return false;
+        foreach ($toolClasses as $toolClass) {
+            if (! is_string($toolClass) || $toolClass === '') {
+                continue;
+            }
+
+            $allowed[$toolClass] = true;
         }
 
-        return in_array($toolName, $allowedForServer, true);
+        return $allowed;
     }
 }

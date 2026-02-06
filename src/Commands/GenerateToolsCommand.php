@@ -2,12 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Laravel\McpProviders\Console;
+namespace Laravel\McpProviders\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Contracts\Filesystem\FileNotFoundException;
+use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Str;
 use Laravel\McpProviders\ConfigServerRepository;
 use Laravel\McpProviders\Generation\GeneratedToolRenderer;
+use Laravel\McpProviders\Generation\GeneratedToolsetRenderer;
 use Laravel\McpProviders\Generation\ToolClassNameResolver;
 use RuntimeException;
 use Throwable;
@@ -25,7 +28,9 @@ final class GenerateToolsCommand extends Command
     public function __construct(
         private readonly ConfigServerRepository $servers,
         private readonly GeneratedToolRenderer $renderer,
+        private readonly GeneratedToolsetRenderer $toolsetRenderer,
         private readonly ToolClassNameResolver $resolver,
+        private readonly Filesystem $files,
     ) {
         parent::__construct();
     }
@@ -42,9 +47,10 @@ final class GenerateToolsCommand extends Command
             }
 
             $usedClassNames = [];
-            $baseNamespace = trim((string) config('ai-mcp.generated.namespace', 'App\\Ai\\Tools\\Generated'), '\\');
-            $basePath = (string) config('ai-mcp.generated.path', app_path('Ai/Tools/Generated'));
+            $baseNamespace = trim((string) config('mcp-providers.generated.namespace', 'App\\Ai\\Tools\\Generated'), '\\');
+            $basePath = (string) config('mcp-providers.generated.path', app_path('Ai/Tools/Generated'));
             $allowCollisionSuffix = ! (bool) $this->option('fail-on-collision');
+            $dryRun = (bool) $this->option('dry-run');
 
             if ((bool) $this->option('clean')) {
                 $this->cleanSelectedServerDirectories($basePath, array_keys($servers));
@@ -52,6 +58,8 @@ final class GenerateToolsCommand extends Command
 
             $toolDefinitions = $this->loadToolDefinitions($servers);
             $generatedCount = 0;
+            $toolClassesByServer = [];
+            $allToolClasses = [];
 
             foreach ($toolDefinitions as $definition) {
                 $serverSlug = $definition['server_slug'];
@@ -69,6 +77,7 @@ final class GenerateToolsCommand extends Command
                 );
                 $directory = rtrim($basePath, '/').'/'.$serverNamespace;
                 $path = $directory.'/'.$className.'.php';
+                $class = $namespace.'\\'.$className;
 
                 $source = $this->renderer->render(
                     namespace: $namespace,
@@ -79,21 +88,20 @@ final class GenerateToolsCommand extends Command
                     inputSchema: $inputSchema,
                 );
 
-                if ((bool) $this->option('dry-run')) {
-                    $this->line('[dry-run] '.$path.' => '.$namespace.'\\'.$className);
-                    $generatedCount++;
-
-                    continue;
-                }
-
-                if (! is_dir($directory) && ! @mkdir($directory, 0755, true) && ! is_dir($directory)) {
-                    throw new RuntimeException('Unable to create directory: '.$directory);
-                }
-
-                file_put_contents($path, $source);
-                $this->line('Generated: '.$path);
+                $toolClassesByServer[$serverSlug][] = $class;
+                $allToolClasses[] = $class;
+                $this->writeGeneratedFile($path, $source, $class, $dryRun);
                 $generatedCount++;
             }
+
+            $generatedCount += $this->generateToolsetClasses(
+                $baseNamespace,
+                $basePath,
+                $toolClassesByServer,
+                $allToolClasses,
+                $dryRun,
+                $allowCollisionSuffix,
+            );
 
             $this->info('Generated tools: '.$generatedCount);
 
@@ -116,43 +124,179 @@ final class GenerateToolsCommand extends Command
         return $this->servers->selected($selected);
     }
 
+    /**
+     * @param  list<string>  $serverSlugs
+     */
     private function cleanSelectedServerDirectories(string $basePath, array $serverSlugs): void
     {
         foreach ($serverSlugs as $serverSlug) {
             $directory = rtrim($basePath, '/').'/'.Str::studly($serverSlug);
 
-            if (! is_dir($directory)) {
+            if (! $this->files->isDirectory($directory)) {
                 continue;
             }
 
-            $this->deleteDirectory($directory);
-            $this->line('Cleaned: '.$directory);
+            try {
+                if ($this->files->deleteDirectory($directory)) {
+                    $this->line('Cleaned: '.$directory);
+                }
+            } catch (Throwable $e) {
+                $this->warn('Skipping clean for ['.$directory.']: '.$e->getMessage());
+            }
         }
-    }
 
-    private function deleteDirectory(string $directory): void
-    {
-        $items = @scandir($directory);
+        $aggregateToolset = rtrim($basePath, '/').'/McpToolset.php';
 
-        if ($items === false) {
+        if (! $this->files->isFile($aggregateToolset)) {
             return;
         }
 
-        foreach ($items as $item) {
-            if ($item === '.' || $item === '..') {
+        try {
+            if ($this->files->delete($aggregateToolset)) {
+                $this->line('Cleaned: '.$aggregateToolset);
+            }
+        } catch (Throwable $e) {
+            $this->warn('Skipping clean for ['.$aggregateToolset.']: '.$e->getMessage());
+        }
+    }
+
+    private function ensureDirectoryExists(string $directory): void
+    {
+        if ($this->files->isDirectory($directory)) {
+            return;
+        }
+
+        if (! $this->files->makeDirectory($directory, 0755, true)) {
+            throw new RuntimeException('Unable to create directory: '.$directory);
+        }
+    }
+
+    private function writeGeneratedFile(
+        string $path,
+        string $source,
+        string $className,
+        bool $dryRun,
+    ): void {
+        if ($dryRun) {
+            $this->line('[dry-run] '.$path.' => '.$className);
+
+            return;
+        }
+
+        $this->ensureDirectoryExists(dirname($path));
+
+        if ($this->files->put($path, $source) === false) {
+            throw new RuntimeException('Unable to write generated tool file: '.$path);
+        }
+
+        $this->line('Generated: '.$path);
+    }
+
+    /**
+     * @param  array<string, list<class-string>>  $toolClassesByServer
+     * @param  list<class-string>  $allToolClasses
+     */
+    private function generateToolsetClasses(
+        string $baseNamespace,
+        string $basePath,
+        array $toolClassesByServer,
+        array $allToolClasses,
+        bool $dryRun,
+        bool $allowCollisionSuffix,
+    ): int {
+        if ($allToolClasses === []) {
+            return 0;
+        }
+
+        $count = 0;
+        $usedToolsetClassNames = [];
+        ksort($toolClassesByServer);
+
+        foreach ($toolClassesByServer as $serverSlug => $toolClasses) {
+            if ($toolClasses === []) {
                 continue;
             }
 
-            $path = $directory.'/'.$item;
+            sort($toolClasses);
 
-            if (is_dir($path)) {
-                $this->deleteDirectory($path);
-            } else {
-                @unlink($path);
-            }
+            $serverNamespace = Str::studly($serverSlug);
+            $namespace = $baseNamespace.'\\'.$serverNamespace;
+            $className = $this->resolveToolsetClassName(
+                $serverSlug,
+                $usedToolsetClassNames,
+                $allowCollisionSuffix,
+            );
+            $path = rtrim($basePath, '/').'/'.$serverNamespace.'/'.$className.'.php';
+            $source = $this->toolsetRenderer->render(
+                namespace: $namespace,
+                className: $className,
+                toolClasses: $toolClasses,
+            );
+
+            $this->writeGeneratedFile($path, $source, $namespace.'\\'.$className, $dryRun);
+            $count++;
         }
 
-        @rmdir($directory);
+        sort($allToolClasses);
+
+        $aggregatePath = rtrim($basePath, '/').'/McpToolset.php';
+        $aggregateClass = $baseNamespace.'\\McpToolset';
+        $aggregateSource = $this->toolsetRenderer->render(
+            namespace: $baseNamespace,
+            className: 'McpToolset',
+            toolClasses: $allToolClasses,
+        );
+
+        $this->writeGeneratedFile($aggregatePath, $aggregateSource, $aggregateClass, $dryRun);
+
+        return $count + 1;
+    }
+
+    /**
+     * @param  array<string, true>  $usedClassNames
+     */
+    private function resolveToolsetClassName(
+        string $serverSlug,
+        array &$usedClassNames,
+        bool $allowCollisionSuffix,
+    ): string {
+        $baseName = $this->normalizeForClass($serverSlug).'Toolset';
+
+        if (! isset($usedClassNames[$baseName])) {
+            $usedClassNames[$baseName] = true;
+
+            return $baseName;
+        }
+
+        if (! $allowCollisionSuffix) {
+            throw new RuntimeException('Toolset class name collision detected for ['.$serverSlug.'] -> ['.$baseName.']');
+        }
+
+        $hashedName = $baseName.substr(md5($serverSlug), 0, 8);
+
+        if (! isset($usedClassNames[$hashedName])) {
+            $usedClassNames[$hashedName] = true;
+
+            return $hashedName;
+        }
+
+        $counter = 2;
+
+        do {
+            $candidate = $hashedName.$counter;
+            $counter++;
+        } while (isset($usedClassNames[$candidate]));
+
+        $usedClassNames[$candidate] = true;
+
+        return $candidate;
+    }
+
+    private function normalizeForClass(string $value): string
+    {
+        $studly = Str::studly(preg_replace('/[^a-zA-Z0-9]+/', ' ', $value) ?? '');
+
+        return $studly === '' ? 'Mcp' : $studly;
     }
 
     /**
@@ -178,7 +322,7 @@ final class GenerateToolsCommand extends Command
                 continue;
             }
 
-            if (! is_file($manifestPath)) {
+            if (! $this->files->isFile($manifestPath)) {
                 $this->warn('Skipping ['.$serverSlug.'] - manifest not found: '.$manifestPath);
 
                 continue;
@@ -229,9 +373,9 @@ final class GenerateToolsCommand extends Command
      */
     private function decodeManifest(string $manifestPath): array
     {
-        $contents = @file_get_contents($manifestPath);
-
-        if ($contents === false) {
+        try {
+            $contents = $this->files->get($manifestPath);
+        } catch (FileNotFoundException) {
             throw new RuntimeException('Unable to read manifest: '.$manifestPath);
         }
 

@@ -1,0 +1,11 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    paths:
+        - src
+    level: 6
+    tmpDir: build/phpstan
+    reportUnmatchedIgnoredErrors: true
+    ignoreErrors:
+        - '#Trait Laravel\\McpProviders\\Concerns\\HasMcpTools is used zero times and is not analysed\.#'

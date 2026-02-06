@@ -7,10 +7,10 @@ namespace Laravel\McpProviders;
 use Illuminate\Support\ServiceProvider;
 use Laravel\McpProviders\Auth\McpAuthResolver;
 use Laravel\McpProviders\Clients\JsonRpcMcpClient;
-use Laravel\McpProviders\Console\DiscoverToolsCommand;
-use Laravel\McpProviders\Console\GenerateToolsCommand;
-use Laravel\McpProviders\Console\HealthCheckCommand;
-use Laravel\McpProviders\Console\SyncToolsCommand;
+use Laravel\McpProviders\Commands\DiscoverToolsCommand;
+use Laravel\McpProviders\Commands\GenerateToolsCommand;
+use Laravel\McpProviders\Commands\HealthCheckCommand;
+use Laravel\McpProviders\Commands\SyncToolsCommand;
 use Laravel\McpProviders\Contracts\McpClient;
 use Laravel\McpProviders\Contracts\McpInvocationRouter;
 use Laravel\McpProviders\Generation\ToolClassNameResolver;
@@ -20,7 +20,7 @@ final class McpProvidersServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->mergeConfigFrom(__DIR__.'/../config/ai-mcp.php', 'ai-mcp');
+        $this->mergeConfigFrom(__DIR__.'/../config/mcp-providers.php', 'mcp-providers');
 
         $this->app->singleton(ConfigServerRepository::class);
         $this->app->singleton(McpAuthResolver::class);
@@ -33,7 +33,7 @@ final class McpProvidersServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->publishes([
-            __DIR__.'/../config/ai-mcp.php' => config_path('ai-mcp.php'),
+            __DIR__.'/../config/mcp-providers.php' => config_path('mcp-providers.php'),
         ], 'mcp-providers-config');
 
         if ($this->app->runningInConsole()) {

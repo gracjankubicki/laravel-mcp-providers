@@ -1,13 +1,17 @@
 {
-    "name": "laravel/mcp-providers",
-    "description": "External MCP providers integration for Laravel AI SDK.",
+    "name": "gracjankubicki/mcp-servers",
+    "description": "External MCP servers integration for Laravel AI SDK.",
     "keywords": [
         "laravel",
         "ai",
         "mcp",
-        "providers"
+        "servers"
     ],
-    "homepage": "https://github.com/laravel/mcp-providers",
+    "homepage": "https://github.com/gracjankubicki/mcp-servers",
+    "support": {
+        "issues": "https://github.com/gracjankubicki/mcp-servers/issues",
+        "source": "https://github.com/gracjankubicki/mcp-servers"
+    },
     "license": "MIT",
     "require": {
         "php": "^8.5",
@@ -17,6 +21,7 @@
         "laravel/ai": "^0.1.2"
     },
     "require-dev": {
+        "larastan/larastan": "^3.0",
         "laravel/pint": "^1.26",
         "orchestra/testbench": "^10.6"
     },
@@ -41,6 +46,7 @@
         "test": "vendor/bin/phpunit -c phpunit.xml",
         "lint": "vendor/bin/pint --test",
         "format": "vendor/bin/pint",
+        "analyse": "vendor/bin/phpstan analyse --configuration=phpstan.neon.dist --memory-limit=1G",
         "test:coverage": [
             "vendor/bin/phpunit -c phpunit.xml --coverage-clover coverage.xml --coverage-filter src",
             "@php scripts/check-coverage.php coverage.xml 100"
@@ -48,7 +54,5 @@
     },
     "config": {
         "sort-packages": true
-    },
-    "minimum-stability": "dev",
-    "prefer-stable": true
+    }
 }

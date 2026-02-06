@@ -1,34 +1,72 @@
-# Laravel MCP Providers
+# MCP Servers for Laravel AI
 
-Integracja wielu serwerow MCP z Laravel AI SDK przez workflow oparty o pliki:
-`discover -> manifesty -> generate -> runtime`.
+![MCP Servers Logo](docs/assets/logo.svg)
 
-## Najwazniejsze funkcje
-- Wiele serwerow MCP bez bazy danych.
-- Stabilne nazwy narzedzi w runtime: `server_slug.tool_name`.
-- Generowanie klas narzedzi z manifestow JSON.
-- Retry/backoff i timeouty per serwer.
-- Health check dla serwerow MCP.
-- Allowlista narzedzi per agent.
-- Auth per serwer przez klasy strategii (`auth.strategy`).
+[![Latest Version on Packagist](https://img.shields.io/packagist/v/gracjankubicki/mcp-servers.svg?label=packagist)](https://packagist.org/packages/gracjankubicki/mcp-servers)
+[![PHP Version](https://img.shields.io/packagist/php-v/gracjankubicki/mcp-servers.svg)](https://packagist.org/packages/gracjankubicki/mcp-servers)
+[![Laravel](https://img.shields.io/badge/Laravel-12.x-FF2D20.svg)](https://laravel.com)
+[![License](https://img.shields.io/packagist/l/gracjankubicki/mcp-servers.svg)](LICENSE)
+[![Tests](https://img.shields.io/github/actions/workflow/status/gracjankubicki/mcp-servers/tests.yml?label=tests)](https://github.com/gracjankubicki/mcp-servers/actions/workflows/tests.yml)
+[![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)](composer.json)
 
-## Wymagania
+`gracjankubicki/mcp-servers` integrates external MCP servers with [laravel/ai](https://github.com/laravel/ai) using a class-first tools workflow.
+
+## Why this package
+
+- Connect multiple MCP servers from Laravel config.
+- Discover tool metadata from MCP (`tools/list`) into local manifests.
+- Generate typed Laravel AI tools from manifests.
+- Select tools by `::class` (safe, explicit, refactor-friendly).
+- Add per-server auth, timeout, retry, and health checks.
+
+## Requirements
+
 - PHP `^8.5`
 - Laravel `^12.0`
 - `laravel/ai` `^0.1.2`
 
-## Instalacja
+## Installation
+
 ```bash
-composer require laravel/mcp-providers
+composer require gracjankubicki/mcp-servers
 ```
 
-Publikacja konfiguracji:
+Publish config:
+
 ```bash
 php artisan vendor:publish --tag=mcp-providers-config
 ```
 
-## Konfiguracja
-Plik: `config/ai-mcp.php`
+## Quick Start
+
+1. Configure MCP servers in `config/mcp-providers.php`.
+2. Discover manifests:
+
+```bash
+php artisan ai-mcp:discover
+```
+
+3. Generate tools:
+
+```bash
+php artisan ai-mcp:generate
+```
+
+4. Use generated tool classes in your agent:
+
+```php
+public function tools(): iterable
+{
+    return [
+        app(\App\Ai\Tools\Generated\Gdocs\GdocsSearchDocsTool::class),
+        app(\App\Ai\Tools\Generated\N8n\N8nRunWorkflowTool::class),
+    ];
+}
+```
+
+## Configuration
+
+Config file: `config/mcp-providers.php`
 
 ```php
 <?php
@@ -49,6 +87,7 @@ return [
             ],
             'manifest' => resource_path('mcp/gdocs.tools.json'),
         ],
+
         'n8n' => [
             'endpoint' => env('MCP_N8N_URL'),
             'auth' => [
@@ -74,9 +113,19 @@ return [
 ];
 ```
 
-## Workflow
-### 1. Discover
-Pobiera `tools/list` i zapisuje deterministyczne manifesty.
+### Server fields
+
+- `endpoint` (string, required): MCP server URL.
+- `manifest` (string, required for discover/generate/registry/toolset flows): local JSON manifest path.
+- `timeout` (int, optional): request timeout in seconds.
+- `auth` (array, optional): auth strategy + params.
+- `retry` (array, optional): `attempts`, `backoff_ms`, `max_backoff_ms`.
+
+## CLI Workflow
+
+### Discover
+
+Fetches `tools/list` and writes normalized manifests.
 
 ```bash
 php artisan ai-mcp:discover
@@ -84,8 +133,9 @@ php artisan ai-mcp:discover --server=gdocs --dry-run
 php artisan ai-mcp:discover --prune --fail-fast
 ```
 
-### 2. Generate
-Generuje klasy narzedzi z manifestow.
+### Generate
+
+Generates Laravel AI tool classes from manifests.
 
 ```bash
 php artisan ai-mcp:generate
@@ -93,75 +143,134 @@ php artisan ai-mcp:generate --server=gdocs --clean
 php artisan ai-mcp:generate --fail-on-collision
 ```
 
-### 3. Sync
-Uruchamia discover + generate.
+Generated output:
+
+- Tool classes, for example: `App\Ai\Tools\Generated\Gdocs\GdocsSearchDocsTool`
+- Per-server toolset classes, for example: `App\Ai\Tools\Generated\Gdocs\GdocsToolset`
+- Aggregate toolset class: `App\Ai\Tools\Generated\McpToolset`
+
+### Sync
+
+Runs discover and generate in sequence.
 
 ```bash
 php artisan ai-mcp:sync
 ```
 
-### 4. Health
-Sprawdza lacznosc z serwerami MCP.
+### Health
+
+Checks MCP connectivity.
 
 ```bash
 php artisan ai-mcp:health
 php artisan ai-mcp:health --server=gdocs --fail-fast
 ```
 
-## Uzycie w agencie
+## Runtime APIs
+
+### `GeneratedToolset`
+
 ```php
 public function tools(): iterable
 {
-    return app(\Laravel\McpProviders\GeneratedToolRegistry::class)
-        ->forServers(['gdocs', 'n8n']);
+    return app(\Laravel\McpProviders\GeneratedToolset::class)
+        ->forServers(['gdocs', 'n8n'])
+        ->onlyClasses([
+            \App\Ai\Tools\Generated\Gdocs\GdocsSearchDocsTool::class,
+            \App\Ai\Tools\Generated\N8n\N8nRunWorkflowTool::class,
+        ]);
 }
 ```
 
-Allowlista narzedzi:
+Methods:
+
+- `all()`
+- `onlyClasses(array $toolClasses)`
+- `exceptClasses(array $toolClasses)`
+
+### Generated toolset classes
+
 ```php
 public function tools(): iterable
 {
-    return app(\Laravel\McpProviders\GeneratedToolRegistry::class)
-        ->forServers(
-            ['gdocs', 'n8n'],
-            ['gdocs' => ['search_docs'], 'n8n' => ['run_workflow']]
-        );
+    return app(\App\Ai\Tools\Generated\McpToolset::class)->all();
 }
 ```
 
-## Wlasna strategia auth (per server)
+### `GeneratedToolRegistry` (fully dynamic)
+
 ```php
-namespace App\Mcp\Auth;
+$tools = iterator_to_array(
+    app(\Laravel\McpProviders\GeneratedToolRegistry::class)
+        ->forServers(['gdocs', 'n8n'], [
+            \App\Ai\Tools\Generated\Gdocs\GdocsSearchDocsTool::class,
+            \App\Ai\Tools\Generated\N8n\N8nRunWorkflowTool::class,
+        ]),
+    false,
+);
+```
 
-use Laravel\McpProviders\Contracts\McpAuthStrategy;
+### `HasMcpTools` trait
 
-final class TenantBearerAuthStrategy implements McpAuthStrategy
+```php
+use Laravel\Ai\Contracts\Agent;
+use Laravel\Ai\Contracts\HasTools;
+use Laravel\Ai\Promptable;
+use Laravel\McpProviders\Concerns\HasMcpTools;
+
+final class SupportAgent implements Agent, HasTools
 {
-    public function headers(array $authConfig, ?string $serverSlug = null, ?string $toolName = null): array
+    use Promptable;
+    use HasMcpTools;
+
+    public function instructions(): string
     {
-        $token = $authConfig['token'] ?? null;
+        return 'Help users with docs and workflow tasks.';
+    }
 
-        return is_string($token) && $token !== ''
-            ? ['Authorization' => 'Bearer '.$token]
-            : [];
+    protected function mcpServers(): array
+    {
+        return ['gdocs', 'n8n'];
+    }
+
+    protected function mcpOnlyToolClasses(): array
+    {
+        return [
+            \App\Ai\Tools\Generated\Gdocs\GdocsSearchDocsTool::class,
+            \App\Ai\Tools\Generated\N8n\N8nRunWorkflowTool::class,
+        ];
     }
 }
 ```
 
-W configu serwera:
-```php
-'auth' => [
-    'strategy' => \App\Mcp\Auth\TenantBearerAuthStrategy::class,
-    'token' => env('MCP_TENANT_TOKEN'),
-],
-```
+## Auth Strategies
 
-## Komendy developerskie
+Built-in strategies:
+
+- `\Laravel\McpProviders\Auth\BearerAuthStrategy`
+- `\Laravel\McpProviders\Auth\HeaderAuthStrategy`
+
+Custom strategy: implement `\Laravel\McpProviders\Contracts\McpAuthStrategy` and set `servers.<slug>.auth.strategy`.
+
+## Notes
+
+- Tool selection is class-only (`::class`). Name-based allowlists are not supported.
+- If you return explicit tool instances manually, runtime manifest lookup is not required.
+
+## Development
+
 ```bash
+composer format
 composer lint
+composer analyse
 composer test
 composer test:coverage
 ```
 
-## Licencja
+## Release
+
+Release process is documented in [`RELEASING.md`](RELEASING.md).
+
+## License
+
 MIT

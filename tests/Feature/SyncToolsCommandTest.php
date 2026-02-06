@@ -44,14 +44,14 @@ final class SyncToolsCommandTest extends TestCase
         ];
         $this->app->instance(McpClient::class, $client);
 
-        $this->app['config']->set('ai-mcp.servers', [
+        $this->app['config']->set('mcp-providers.servers', [
             'gdocs' => [
                 'endpoint' => 'http://example.test/mcp',
                 'manifest' => $manifest,
             ],
         ]);
-        $this->app['config']->set('ai-mcp.generated.path', $generatedPath);
-        $this->app['config']->set('ai-mcp.generated.namespace', 'App\\Ai\\Tools\\Generated');
+        $this->app['config']->set('mcp-providers.generated.path', $generatedPath);
+        $this->app['config']->set('mcp-providers.generated.namespace', 'App\\Ai\\Tools\\Generated');
 
         $this->artisan('ai-mcp:sync')->assertExitCode(0);
 
@@ -68,14 +68,14 @@ final class SyncToolsCommandTest extends TestCase
         $client->errorsByEndpoint['http://example.test/mcp'] = new RuntimeException('discover failed');
         $this->app->instance(McpClient::class, $client);
 
-        $this->app['config']->set('ai-mcp.servers', [
+        $this->app['config']->set('mcp-providers.servers', [
             'gdocs' => [
                 'endpoint' => 'http://example.test/mcp',
                 'manifest' => $manifest,
             ],
         ]);
-        $this->app['config']->set('ai-mcp.generated.path', $generatedPath);
-        $this->app['config']->set('ai-mcp.generated.namespace', 'App\\Ai\\Tools\\Generated');
+        $this->app['config']->set('mcp-providers.generated.path', $generatedPath);
+        $this->app['config']->set('mcp-providers.generated.namespace', 'App\\Ai\\Tools\\Generated');
 
         $this->artisan('ai-mcp:sync --fail-fast')->assertExitCode(1);
 
@@ -91,14 +91,14 @@ final class SyncToolsCommandTest extends TestCase
         $client->toolsByEndpoint['http://example.test/mcp'] = [];
         $this->app->instance(McpClient::class, $client);
 
-        $this->app['config']->set('ai-mcp.servers', [
+        $this->app['config']->set('mcp-providers.servers', [
             'gdocs' => [
                 'endpoint' => 'http://example.test/mcp',
                 'manifest' => $manifest,
             ],
         ]);
-        $this->app['config']->set('ai-mcp.generated.path', $generatedPath);
-        $this->app['config']->set('ai-mcp.generated.namespace', 'App\\Ai\\Tools\\Generated');
+        $this->app['config']->set('mcp-providers.generated.path', $generatedPath);
+        $this->app['config']->set('mcp-providers.generated.namespace', 'App\\Ai\\Tools\\Generated');
 
         $this->artisan('ai-mcp:sync --dry-run')->assertExitCode(0);
 

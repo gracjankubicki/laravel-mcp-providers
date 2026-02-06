@@ -15,7 +15,7 @@ final class ConfigServerRepositoryTest extends TestCase
 {
     public function test_it_returns_empty_when_servers_config_is_not_array(): void
     {
-        $this->app['config']->set('ai-mcp.servers', 'invalid');
+        $this->app['config']->set('mcp-providers.servers', 'invalid');
 
         $repository = new ConfigServerRepository;
 
@@ -24,7 +24,7 @@ final class ConfigServerRepositoryTest extends TestCase
 
     public function test_it_filters_invalid_server_entries_and_selects_requested_servers(): void
     {
-        $this->app['config']->set('ai-mcp.servers', [
+        $this->app['config']->set('mcp-providers.servers', [
             'gdocs' => ['endpoint' => 'http://example.test', 'manifest' => '/tmp/gdocs.json'],
             'invalid' => 'value',
             'n8n' => ['endpoint' => 'http://example.test', 'manifest' => '/tmp/n8n.json'],
@@ -42,7 +42,7 @@ final class ConfigServerRepositoryTest extends TestCase
 
     public function test_it_throws_for_unknown_server_slug(): void
     {
-        $this->app['config']->set('ai-mcp.servers', [
+        $this->app['config']->set('mcp-providers.servers', [
             'gdocs' => ['endpoint' => 'http://example.test', 'manifest' => '/tmp/gdocs.json'],
         ]);
 
@@ -80,7 +80,7 @@ final class ConfigServerRepositoryTest extends TestCase
 
     public function test_it_resolves_retry_configuration_with_defaults_and_overrides(): void
     {
-        $this->app['config']->set('ai-mcp.retry', [
+        $this->app['config']->set('mcp-providers.retry', [
             'attempts' => 2,
             'backoff_ms' => 150,
             'max_backoff_ms' => 900,

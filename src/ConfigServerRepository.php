@@ -14,7 +14,7 @@ final class ConfigServerRepository
      */
     public function all(): array
     {
-        $servers = config('ai-mcp.servers', []);
+        $servers = config('mcp-providers.servers', []);
 
         if (! is_array($servers)) {
             return [];
@@ -59,7 +59,7 @@ final class ConfigServerRepository
      */
     public function retry(array $server): array
     {
-        $defaults = config('ai-mcp.retry', []);
+        $defaults = config('mcp-providers.retry', []);
         $serverRetry = $server['retry'] ?? [];
 
         $attempts = $this->positiveInt($serverRetry['attempts'] ?? null)

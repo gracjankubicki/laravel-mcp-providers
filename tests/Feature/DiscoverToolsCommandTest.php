@@ -55,7 +55,7 @@ final class DiscoverToolsCommandTest extends TestCase
         ];
 
         $this->app->instance(McpClient::class, $client);
-        $this->app['config']->set('ai-mcp.servers', [
+        $this->app['config']->set('mcp-providers.servers', [
             'gdocs' => [
                 'endpoint' => 'http://example.test/mcp',
                 'endpoint_env' => 'MCP_GDOCS_URL',
@@ -94,7 +94,7 @@ final class DiscoverToolsCommandTest extends TestCase
         $client->toolsByEndpoint['http://example.test/mcp'] = [];
         $this->app->instance(McpClient::class, $client);
 
-        $this->app['config']->set('ai-mcp.servers', [
+        $this->app['config']->set('mcp-providers.servers', [
             'gdocs' => [
                 'endpoint' => 'http://example.test/mcp',
                 'manifest' => $manifest,
@@ -116,7 +116,7 @@ final class DiscoverToolsCommandTest extends TestCase
         $client->toolsByEndpoint['http://example.test/mcp'] = [];
         $this->app->instance(McpClient::class, $client);
 
-        $this->app['config']->set('ai-mcp.servers', [
+        $this->app['config']->set('mcp-providers.servers', [
             'keep' => [
                 'endpoint' => 'http://example.test/mcp',
                 'manifest' => $keepManifest,
@@ -143,7 +143,7 @@ final class DiscoverToolsCommandTest extends TestCase
         $client->toolsByEndpoint['http://example.test/mcp'] = [];
         $this->app->instance(McpClient::class, $client);
 
-        $this->app['config']->set('ai-mcp.servers', [
+        $this->app['config']->set('mcp-providers.servers', [
             'keep' => [
                 'endpoint' => 'http://example.test/mcp',
                 'manifest' => $keepManifest,
@@ -170,7 +170,7 @@ final class DiscoverToolsCommandTest extends TestCase
         $client->toolsByEndpoint['http://example.test/second'] = [];
         $this->app->instance(McpClient::class, $client);
 
-        $this->app['config']->set('ai-mcp.servers', [
+        $this->app['config']->set('mcp-providers.servers', [
             'first' => ['endpoint' => 'http://example.test/first', 'manifest' => $firstManifest],
             'second' => ['endpoint' => 'http://example.test/second', 'manifest' => $secondManifest],
         ]);
@@ -188,7 +188,7 @@ final class DiscoverToolsCommandTest extends TestCase
         $client = new FakeMcpClient;
         $this->app->instance(McpClient::class, $client);
 
-        $this->app['config']->set('ai-mcp.servers', [
+        $this->app['config']->set('mcp-providers.servers', [
             'missing_manifest' => ['endpoint' => 'http://example.test/a'],
             'missing_endpoint' => ['manifest' => $this->workspace.'/x.tools.json'],
         ]);
@@ -201,7 +201,7 @@ final class DiscoverToolsCommandTest extends TestCase
         $client = new FakeMcpClient;
         $this->app->instance(McpClient::class, $client);
 
-        $this->app['config']->set('ai-mcp.servers', [
+        $this->app['config']->set('mcp-providers.servers', [
             'gdocs' => ['endpoint' => 'http://example.test/mcp'],
         ]);
 
@@ -217,7 +217,7 @@ final class DiscoverToolsCommandTest extends TestCase
         $client->toolsByEndpoint['http://example.test/mcp'] = [];
         $this->app->instance(McpClient::class, $client);
 
-        $this->app['config']->set('ai-mcp.servers', [
+        $this->app['config']->set('mcp-providers.servers', [
             'gdocs' => [
                 'endpoint' => 'http://example.test/mcp',
                 'manifest' => $blockedParent.'/child/gdocs.tools.json',
@@ -229,13 +229,13 @@ final class DiscoverToolsCommandTest extends TestCase
 
     public function test_it_returns_success_when_no_servers_selected(): void
     {
-        $this->app['config']->set('ai-mcp.servers', []);
+        $this->app['config']->set('mcp-providers.servers', []);
         $this->artisan('ai-mcp:discover')->assertExitCode(0);
     }
 
     public function test_it_fails_for_unknown_selected_server_slug(): void
     {
-        $this->app['config']->set('ai-mcp.servers', [
+        $this->app['config']->set('mcp-providers.servers', [
             'gdocs' => ['endpoint' => 'http://example.test/mcp', 'manifest' => $this->workspace.'/gdocs.tools.json'],
         ]);
 
@@ -250,7 +250,7 @@ final class DiscoverToolsCommandTest extends TestCase
         $client->toolsByEndpoint['http://example.test/mcp'] = [];
         $this->app->instance(McpClient::class, $client);
 
-        $this->app['config']->set('ai-mcp.servers', [
+        $this->app['config']->set('mcp-providers.servers', [
             'keep' => [
                 'endpoint' => 'http://example.test/mcp',
                 'manifest' => $keepManifest,

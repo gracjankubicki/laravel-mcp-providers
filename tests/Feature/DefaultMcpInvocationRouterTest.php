@@ -15,7 +15,7 @@ final class DefaultMcpInvocationRouterTest extends TestCase
 {
     public function test_it_invokes_tool_with_configured_headers_and_timeout(): void
     {
-        $this->app['config']->set('ai-mcp.servers', [
+        $this->app['config']->set('mcp-providers.servers', [
             'gdocs' => [
                 'endpoint' => 'http://example.test/mcp',
                 'timeout' => 15,
@@ -40,7 +40,7 @@ final class DefaultMcpInvocationRouterTest extends TestCase
 
     public function test_it_throws_for_unknown_server(): void
     {
-        $this->app['config']->set('ai-mcp.servers', []);
+        $this->app['config']->set('mcp-providers.servers', []);
 
         $router = new DefaultMcpInvocationRouter(new FakeMcpClient, new ConfigServerRepository);
 
@@ -52,7 +52,7 @@ final class DefaultMcpInvocationRouterTest extends TestCase
 
     public function test_it_throws_when_endpoint_is_missing(): void
     {
-        $this->app['config']->set('ai-mcp.servers', [
+        $this->app['config']->set('mcp-providers.servers', [
             'gdocs' => ['manifest' => '/tmp/x.json'],
         ]);
 

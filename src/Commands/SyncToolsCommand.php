@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Laravel\McpProviders\Console;
+namespace Laravel\McpProviders\Commands;
 
 use Illuminate\Console\Command;
 

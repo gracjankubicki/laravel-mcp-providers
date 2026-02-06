@@ -57,21 +57,27 @@ final class GenerateToolsCommandTest extends TestCase
             ],
         ]]);
 
-        $this->app['config']->set('ai-mcp.servers', [
+        $this->app['config']->set('mcp-providers.servers', [
             'gdocs' => ['manifest' => $gdocsManifest, 'endpoint' => 'http://127.0.0.1:9999'],
             'n8n' => ['manifest' => $n8nManifest, 'endpoint' => 'http://127.0.0.1:9999'],
         ]);
-        $this->app['config']->set('ai-mcp.generated.path', $generatedPath);
-        $this->app['config']->set('ai-mcp.generated.namespace', 'App\\Ai\\Tools\\Generated');
+        $this->app['config']->set('mcp-providers.generated.path', $generatedPath);
+        $this->app['config']->set('mcp-providers.generated.namespace', 'App\\Ai\\Tools\\Generated');
 
         $this->artisan('ai-mcp:generate')
             ->assertExitCode(0);
 
         $gdocsFile = $generatedPath.'/Gdocs/GdocsSearchDocsTool.php';
         $n8nFile = $generatedPath.'/N8n/N8nSearchDocsTool.php';
+        $gdocsToolset = $generatedPath.'/Gdocs/GdocsToolset.php';
+        $n8nToolset = $generatedPath.'/N8n/N8nToolset.php';
+        $aggregateToolset = $generatedPath.'/McpToolset.php';
 
         $this->assertFileExists($gdocsFile);
         $this->assertFileExists($n8nFile);
+        $this->assertFileExists($gdocsToolset);
+        $this->assertFileExists($n8nToolset);
+        $this->assertFileExists($aggregateToolset);
 
         $gdocsSource = file_get_contents($gdocsFile);
         $this->assertIsString($gdocsSource);
@@ -92,11 +98,11 @@ final class GenerateToolsCommandTest extends TestCase
             'input_schema' => ['type' => 'object', 'properties' => []],
         ]]);
 
-        $this->app['config']->set('ai-mcp.servers', [
+        $this->app['config']->set('mcp-providers.servers', [
             'gdocs' => ['manifest' => $manifest, 'endpoint' => 'http://127.0.0.1:9999'],
         ]);
-        $this->app['config']->set('ai-mcp.generated.path', $generatedPath);
-        $this->app['config']->set('ai-mcp.generated.namespace', 'App\\Ai\\Tools\\Generated');
+        $this->app['config']->set('mcp-providers.generated.path', $generatedPath);
+        $this->app['config']->set('mcp-providers.generated.namespace', 'App\\Ai\\Tools\\Generated');
 
         $this->artisan('ai-mcp:generate --dry-run')
             ->assertExitCode(0);
@@ -109,11 +115,11 @@ final class GenerateToolsCommandTest extends TestCase
         $manifest = $this->workspace.'/gdocs.tools.json';
         $generatedPath = $this->workspace.'/generated';
 
-        $this->app['config']->set('ai-mcp.servers', [
+        $this->app['config']->set('mcp-providers.servers', [
             'gdocs' => ['manifest' => $manifest, 'endpoint' => 'http://127.0.0.1:9999'],
         ]);
-        $this->app['config']->set('ai-mcp.generated.path', $generatedPath);
-        $this->app['config']->set('ai-mcp.generated.namespace', 'App\\Ai\\Tools\\Generated');
+        $this->app['config']->set('mcp-providers.generated.path', $generatedPath);
+        $this->app['config']->set('mcp-providers.generated.namespace', 'App\\Ai\\Tools\\Generated');
 
         $this->writeManifest($manifest, [[
             'name' => 'search_docs',
@@ -153,26 +159,32 @@ final class GenerateToolsCommandTest extends TestCase
         $this->writeManifest($firstManifest, $toolDefinition);
         $this->writeManifest($secondManifest, $toolDefinition);
 
-        $this->app['config']->set('ai-mcp.servers', [
+        $this->app['config']->set('mcp-providers.servers', [
             'crm-api' => ['manifest' => $firstManifest, 'endpoint' => 'http://127.0.0.1:9999'],
             'crm_api' => ['manifest' => $secondManifest, 'endpoint' => 'http://127.0.0.1:9999'],
         ]);
-        $this->app['config']->set('ai-mcp.generated.path', $generatedPath);
-        $this->app['config']->set('ai-mcp.generated.namespace', 'App\\Ai\\Tools\\Generated');
+        $this->app['config']->set('mcp-providers.generated.path', $generatedPath);
+        $this->app['config']->set('mcp-providers.generated.namespace', 'App\\Ai\\Tools\\Generated');
 
         $this->artisan('ai-mcp:generate')
             ->assertExitCode(0);
 
         $files = glob($generatedPath.'/CrmApi/*.php');
         sort($files);
+        $toolFiles = array_values(array_filter(
+            $files,
+            static fn (string $path): bool => ! str_contains(basename($path), 'Toolset')
+        ));
 
         $this->assertIsArray($files);
-        $this->assertCount(2, $files);
-        $this->assertSame($generatedPath.'/CrmApi/CrmApiCreateTicketTool.php', $files[0]);
+        $this->assertCount(2, $toolFiles);
+        $this->assertSame($generatedPath.'/CrmApi/CrmApiCreateTicketTool.php', $toolFiles[0]);
         $this->assertMatchesRegularExpression(
             '#/CrmApi/CrmApiCreateTicketTool[a-f0-9]{8}\.php$#',
-            $files[1]
+            $toolFiles[1]
         );
+        $this->assertContains($generatedPath.'/CrmApi/CrmApiToolset.php', $files);
+        $this->assertNotEmpty(preg_grep('#/CrmApi/CrmApiToolset[a-f0-9]{8}\.php$#', $files));
     }
 
     public function test_it_can_fail_on_collision_when_option_enabled(): void
@@ -190,12 +202,12 @@ final class GenerateToolsCommandTest extends TestCase
         $this->writeManifest($firstManifest, $toolDefinition);
         $this->writeManifest($secondManifest, $toolDefinition);
 
-        $this->app['config']->set('ai-mcp.servers', [
+        $this->app['config']->set('mcp-providers.servers', [
             'crm-api' => ['manifest' => $firstManifest, 'endpoint' => 'http://127.0.0.1:9999'],
             'crm_api' => ['manifest' => $secondManifest, 'endpoint' => 'http://127.0.0.1:9999'],
         ]);
-        $this->app['config']->set('ai-mcp.generated.path', $generatedPath);
-        $this->app['config']->set('ai-mcp.generated.namespace', 'App\\Ai\\Tools\\Generated');
+        $this->app['config']->set('mcp-providers.generated.path', $generatedPath);
+        $this->app['config']->set('mcp-providers.generated.namespace', 'App\\Ai\\Tools\\Generated');
 
         $this->artisan('ai-mcp:generate --fail-on-collision')
             ->assertExitCode(1);
@@ -203,7 +215,7 @@ final class GenerateToolsCommandTest extends TestCase
 
     public function test_it_returns_success_when_no_servers_selected(): void
     {
-        $this->app['config']->set('ai-mcp.servers', []);
+        $this->app['config']->set('mcp-providers.servers', []);
 
         $this->artisan('ai-mcp:generate')->assertExitCode(0);
     }
@@ -213,13 +225,13 @@ final class GenerateToolsCommandTest extends TestCase
         $invalidToolsManifest = $this->workspace.'/invalid-tools.json';
         file_put_contents($invalidToolsManifest, json_encode(['tools' => 'invalid']));
 
-        $this->app['config']->set('ai-mcp.servers', [
+        $this->app['config']->set('mcp-providers.servers', [
             'missing_manifest_path' => ['endpoint' => 'http://127.0.0.1:9999'],
             'manifest_not_found' => ['manifest' => $this->workspace.'/404.json', 'endpoint' => 'http://127.0.0.1:9999'],
             'invalid_tools' => ['manifest' => $invalidToolsManifest, 'endpoint' => 'http://127.0.0.1:9999'],
         ]);
-        $this->app['config']->set('ai-mcp.generated.path', $this->workspace.'/generated');
-        $this->app['config']->set('ai-mcp.generated.namespace', 'App\\Ai\\Tools\\Generated');
+        $this->app['config']->set('mcp-providers.generated.path', $this->workspace.'/generated');
+        $this->app['config']->set('mcp-providers.generated.namespace', 'App\\Ai\\Tools\\Generated');
 
         $this->artisan('ai-mcp:generate')->assertExitCode(0);
         $this->assertDirectoryDoesNotExist($this->workspace.'/generated');
@@ -231,11 +243,11 @@ final class GenerateToolsCommandTest extends TestCase
         $generatedPath = $this->workspace.'/generated';
 
         $this->writeManifest($manifest, []);
-        $this->app['config']->set('ai-mcp.servers', [
+        $this->app['config']->set('mcp-providers.servers', [
             'gdocs' => ['manifest' => $manifest, 'endpoint' => 'http://127.0.0.1:9999'],
         ]);
-        $this->app['config']->set('ai-mcp.generated.path', $generatedPath);
-        $this->app['config']->set('ai-mcp.generated.namespace', 'App\\Ai\\Tools\\Generated');
+        $this->app['config']->set('mcp-providers.generated.path', $generatedPath);
+        $this->app['config']->set('mcp-providers.generated.namespace', 'App\\Ai\\Tools\\Generated');
 
         $this->artisan('ai-mcp:generate --clean')->assertExitCode(0);
         $this->assertDirectoryDoesNotExist($generatedPath);
@@ -254,11 +266,11 @@ final class GenerateToolsCommandTest extends TestCase
             'description' => 'Search docs',
             'input_schema' => ['type' => 'object', 'properties' => []],
         ]]);
-        $this->app['config']->set('ai-mcp.servers', [
+        $this->app['config']->set('mcp-providers.servers', [
             'gdocs' => ['manifest' => $manifest, 'endpoint' => 'http://127.0.0.1:9999'],
         ]);
-        $this->app['config']->set('ai-mcp.generated.path', $generatedPath);
-        $this->app['config']->set('ai-mcp.generated.namespace', 'App\\Ai\\Tools\\Generated');
+        $this->app['config']->set('mcp-providers.generated.path', $generatedPath);
+        $this->app['config']->set('mcp-providers.generated.namespace', 'App\\Ai\\Tools\\Generated');
 
         $this->artisan('ai-mcp:generate --clean')->assertExitCode(0);
 
@@ -276,21 +288,25 @@ final class GenerateToolsCommandTest extends TestCase
             ['name' => 'a_tool', 'description' => 'a', 'input_schema' => ['type' => 'object', 'properties' => []]],
             ['invalid' => true],
         ]);
-        $this->app['config']->set('ai-mcp.servers', [
+        $this->app['config']->set('mcp-providers.servers', [
             'gdocs' => ['manifest' => $manifest, 'endpoint' => 'http://127.0.0.1:9999'],
         ]);
-        $this->app['config']->set('ai-mcp.generated.path', $generatedPath);
-        $this->app['config']->set('ai-mcp.generated.namespace', 'App\\Ai\\Tools\\Generated');
+        $this->app['config']->set('mcp-providers.generated.path', $generatedPath);
+        $this->app['config']->set('mcp-providers.generated.namespace', 'App\\Ai\\Tools\\Generated');
 
         $this->artisan('ai-mcp:generate')->assertExitCode(0);
 
         $files = glob($generatedPath.'/Gdocs/*.php');
         sort($files);
+        $toolFiles = array_values(array_filter(
+            $files,
+            static fn (string $path): bool => ! str_ends_with($path, 'Toolset.php')
+        ));
 
         $this->assertSame([
             $generatedPath.'/Gdocs/GdocsAToolTool.php',
             $generatedPath.'/Gdocs/GdocsZToolTool.php',
-        ], $files);
+        ], $toolFiles);
     }
 
     public function test_it_fails_when_generated_directory_cannot_be_created(): void
@@ -304,11 +320,11 @@ final class GenerateToolsCommandTest extends TestCase
             'description' => 'Search docs',
             'input_schema' => ['type' => 'object', 'properties' => []],
         ]]);
-        $this->app['config']->set('ai-mcp.servers', [
+        $this->app['config']->set('mcp-providers.servers', [
             'gdocs' => ['manifest' => $manifest, 'endpoint' => 'http://127.0.0.1:9999'],
         ]);
-        $this->app['config']->set('ai-mcp.generated.path', $basePath);
-        $this->app['config']->set('ai-mcp.generated.namespace', 'App\\Ai\\Tools\\Generated');
+        $this->app['config']->set('mcp-providers.generated.path', $basePath);
+        $this->app['config']->set('mcp-providers.generated.namespace', 'App\\Ai\\Tools\\Generated');
 
         $this->artisan('ai-mcp:generate')->assertExitCode(1);
     }
@@ -319,11 +335,11 @@ final class GenerateToolsCommandTest extends TestCase
         file_put_contents($manifest, '{}');
         chmod($manifest, 0000);
 
-        $this->app['config']->set('ai-mcp.servers', [
+        $this->app['config']->set('mcp-providers.servers', [
             'gdocs' => ['manifest' => $manifest, 'endpoint' => 'http://127.0.0.1:9999'],
         ]);
-        $this->app['config']->set('ai-mcp.generated.path', $this->workspace.'/generated');
-        $this->app['config']->set('ai-mcp.generated.namespace', 'App\\Ai\\Tools\\Generated');
+        $this->app['config']->set('mcp-providers.generated.path', $this->workspace.'/generated');
+        $this->app['config']->set('mcp-providers.generated.namespace', 'App\\Ai\\Tools\\Generated');
 
         try {
             $this->artisan('ai-mcp:generate')->assertExitCode(1);
@@ -337,11 +353,11 @@ final class GenerateToolsCommandTest extends TestCase
         $manifest = $this->workspace.'/scalar.tools.json';
         file_put_contents($manifest, '1');
 
-        $this->app['config']->set('ai-mcp.servers', [
+        $this->app['config']->set('mcp-providers.servers', [
             'gdocs' => ['manifest' => $manifest, 'endpoint' => 'http://127.0.0.1:9999'],
         ]);
-        $this->app['config']->set('ai-mcp.generated.path', $this->workspace.'/generated');
-        $this->app['config']->set('ai-mcp.generated.namespace', 'App\\Ai\\Tools\\Generated');
+        $this->app['config']->set('mcp-providers.generated.path', $this->workspace.'/generated');
+        $this->app['config']->set('mcp-providers.generated.namespace', 'App\\Ai\\Tools\\Generated');
 
         $this->artisan('ai-mcp:generate')->assertExitCode(1);
     }
@@ -355,11 +371,11 @@ final class GenerateToolsCommandTest extends TestCase
         chmod($directory, 0000);
 
         $this->writeManifest($manifest, []);
-        $this->app['config']->set('ai-mcp.servers', [
+        $this->app['config']->set('mcp-providers.servers', [
             'gdocs' => ['manifest' => $manifest, 'endpoint' => 'http://127.0.0.1:9999'],
         ]);
-        $this->app['config']->set('ai-mcp.generated.path', $generatedPath);
-        $this->app['config']->set('ai-mcp.generated.namespace', 'App\\Ai\\Tools\\Generated');
+        $this->app['config']->set('mcp-providers.generated.path', $generatedPath);
+        $this->app['config']->set('mcp-providers.generated.namespace', 'App\\Ai\\Tools\\Generated');
 
         try {
             $this->artisan('ai-mcp:generate --clean')->assertExitCode(0);

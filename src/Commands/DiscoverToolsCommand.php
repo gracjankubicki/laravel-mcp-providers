@@ -2,9 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Laravel\McpProviders\Console;
+namespace Laravel\McpProviders\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Carbon;
 use Laravel\McpProviders\ConfigServerRepository;
 use Laravel\McpProviders\Contracts\McpClient;
@@ -26,6 +27,7 @@ final class DiscoverToolsCommand extends Command
         private readonly ConfigServerRepository $servers,
         private readonly McpClient $client,
         private readonly ToolManifestNormalizer $normalizer,
+        private readonly Filesystem $files,
     ) {
         parent::__construct();
     }
@@ -77,17 +79,15 @@ final class DiscoverToolsCommand extends Command
                         continue;
                     }
 
-                    $directory = dirname($manifestPath);
-
-                    if (! is_dir($directory) && ! @mkdir($directory, 0755, true) && ! is_dir($directory)) {
-                        throw new RuntimeException('Unable to create directory: '.$directory);
-                    }
+                    $this->ensureDirectoryExists(dirname($manifestPath));
 
                     $json = json_encode(
                         $manifest,
                         JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
                     );
-                    file_put_contents($manifestPath, $json.PHP_EOL);
+                    if ($this->files->put($manifestPath, $json.PHP_EOL) === false) {
+                        throw new RuntimeException('Unable to write manifest: '.$manifestPath);
+                    }
 
                     $this->line('Discovered: '.$slug.' -> '.$manifestPath);
                 } catch (Throwable $e) {
@@ -166,7 +166,7 @@ final class DiscoverToolsCommand extends Command
 
             $manifestPath = $server['manifest'] ?? null;
 
-            if (! is_string($manifestPath) || ! is_file($manifestPath)) {
+            if (! is_string($manifestPath) || ! $this->files->isFile($manifestPath)) {
                 continue;
             }
 
@@ -176,8 +176,19 @@ final class DiscoverToolsCommand extends Command
                 continue;
             }
 
-            unlink($manifestPath);
+            $this->files->delete($manifestPath);
             $this->line('Pruned: '.$manifestPath);
+        }
+    }
+
+    private function ensureDirectoryExists(string $directory): void
+    {
+        if ($this->files->isDirectory($directory)) {
+            return;
+        }
+
+        if (! $this->files->makeDirectory($directory, 0755, true)) {
+            throw new RuntimeException('Unable to create directory: '.$directory);
         }
     }
 }

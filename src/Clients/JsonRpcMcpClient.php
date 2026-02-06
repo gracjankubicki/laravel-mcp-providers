@@ -157,7 +157,7 @@ final class JsonRpcMcpClient implements McpClient
             ],
         ]);
 
-        $responseBody = @file_get_contents($endpoint, false, $context);
+        $responseBody = $this->readEndpoint($endpoint, $context);
 
         if ($responseBody === false) {
             throw McpException::transport($endpoint);
@@ -184,5 +184,18 @@ final class JsonRpcMcpClient implements McpClient
         }
 
         return $decoded['result'];
+    }
+
+    private function readEndpoint(string $endpoint, mixed $context): string|false
+    {
+        set_error_handler(static function (): bool {
+            return true;
+        });
+
+        try {
+            return file_get_contents($endpoint, false, $context);
+        } finally {
+            restore_error_handler();
+        }
     }
 }

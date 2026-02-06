@@ -16,7 +16,7 @@ final class ToolManifestNormalizer
         array $tools,
         string $generatedAt,
     ): array {
-        $normalizedTools = array_values(array_map(function (array $tool): array {
+        $normalizedTools = array_map(function (array $tool): array {
             $name = isset($tool['name']) && is_string($tool['name']) ? $tool['name'] : '';
 
             return [
@@ -29,7 +29,7 @@ final class ToolManifestNormalizer
                     isset($tool['input_schema']) && is_array($tool['input_schema']) ? $tool['input_schema'] : []
                 ),
             ];
-        }, $tools));
+        }, $tools);
 
         usort($normalizedTools, static fn (array $a, array $b): int => $a['name'] <=> $b['name']);
 
