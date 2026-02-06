@@ -17,10 +17,9 @@
   <circle cx="172" cy="68" r="10" fill="#38BDF8"/>
 
   <text x="232" y="104" fill="#E2E8F0" font-size="52" font-family="Arial, Helvetica, sans-serif" font-weight="700">
-    MCP Servers
+    MCP Providers
   </text>
   <text x="232" y="146" fill="#94A3B8" font-size="26" font-family="Arial, Helvetica, sans-serif">
     Laravel AI integration for external MCP tools
   </text>
 </svg>
-

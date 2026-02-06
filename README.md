@@ -1,15 +1,15 @@
-# MCP Servers for Laravel AI
+# MCP Providers for Laravel AI
 
-![MCP Servers Logo](docs/assets/logo.svg)
+![MCP Providers Logo](docs/assets/logo.svg)
 
-[![Latest Version on Packagist](https://img.shields.io/packagist/v/gracjankubicki/mcp-servers.svg?label=packagist)](https://packagist.org/packages/gracjankubicki/mcp-servers)
-[![PHP Version](https://img.shields.io/packagist/php-v/gracjankubicki/mcp-servers.svg)](https://packagist.org/packages/gracjankubicki/mcp-servers)
+[![Latest Version on Packagist](https://img.shields.io/packagist/v/gracjankubicki/mcp-providers.svg?label=packagist)](https://packagist.org/packages/gracjankubicki/mcp-providers)
+[![PHP Version](https://img.shields.io/packagist/php-v/gracjankubicki/mcp-providers.svg)](https://packagist.org/packages/gracjankubicki/mcp-providers)
 [![Laravel](https://img.shields.io/badge/Laravel-12.x-FF2D20.svg)](https://laravel.com)
-[![License](https://img.shields.io/packagist/l/gracjankubicki/mcp-servers.svg)](LICENSE)
-[![Tests](https://img.shields.io/github/actions/workflow/status/gracjankubicki/mcp-servers/tests.yml?label=tests)](https://github.com/gracjankubicki/mcp-servers/actions/workflows/tests.yml)
+[![License](https://img.shields.io/packagist/l/gracjankubicki/mcp-providers.svg)](LICENSE)
+[![Tests](https://img.shields.io/github/actions/workflow/status/gracjankubicki/mcp-providers/tests.yml?label=tests)](https://github.com/gracjankubicki/mcp-providers/actions/workflows/tests.yml)
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)](composer.json)
 
-`gracjankubicki/mcp-servers` integrates external MCP servers with [laravel/ai](https://github.com/laravel/ai) using a class-first tools workflow.
+`gracjankubicki/mcp-providers` integrates external MCP servers with [laravel/ai](https://github.com/laravel/ai) using a class-first tools workflow.
 
 ## Why this package
 
@@ -28,7 +28,7 @@
 ## Installation
 
 ```bash
-composer require gracjankubicki/mcp-servers
+composer require gracjankubicki/mcp-providers
 ```
 
 Publish config:

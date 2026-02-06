@@ -1,16 +1,16 @@
 {
-    "name": "gracjankubicki/mcp-servers",
-    "description": "External MCP servers integration for Laravel AI SDK.",
+    "name": "gracjankubicki/mcp-providers",
+    "description": "External MCP providers integration for Laravel AI SDK.",
     "keywords": [
         "laravel",
         "ai",
         "mcp",
-        "servers"
+        "providers"
     ],
-    "homepage": "https://github.com/gracjankubicki/mcp-servers",
+    "homepage": "https://github.com/gracjankubicki/mcp-providers",
     "support": {
-        "issues": "https://github.com/gracjankubicki/mcp-servers/issues",
-        "source": "https://github.com/gracjankubicki/mcp-servers"
+        "issues": "https://github.com/gracjankubicki/mcp-providers/issues",
+        "source": "https://github.com/gracjankubicki/mcp-providers"
     },
     "license": "MIT",
     "require": {

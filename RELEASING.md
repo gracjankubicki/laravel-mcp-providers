@@ -20,10 +20,8 @@ git push origin v0.1.0
 4. GitHub Action `.github/workflows/release.yml` will:
    - validate/build/test the package,
    - create a GitHub Release for `v0.1.0`,
-   - use `.github/release-notes/v0.1.0.md` as release body.
+   - generate release notes from merged PRs/commits.
 
 ## Next versions
 
-- Create a new notes file at `.github/release-notes/vX.Y.Z.md`.
 - Tag and push `vX.Y.Z`.
-
