@@ -9,6 +9,12 @@ on:
 jobs:
   phpunit:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        laravel-ai:
+          - "^0.1.2"
+          - "^0.2.6"
 
     steps:
       - name: Checkout
@@ -24,14 +30,21 @@ jobs:
       - name: Validate composer.json
         run: composer validate --strict --no-check-all
 
-      - name: Install dependencies
-        run: composer install --prefer-dist --no-progress --no-interaction
+      - name: Select Laravel AI version
+        run: composer require laravel/ai:${{ matrix.laravel-ai }} --no-update --no-interaction
+
+      - name: Update dependencies
+        run: composer update --prefer-dist --no-progress --no-interaction
 
       - name: Run Pint
         run: composer lint
+
+      - name: Run static analysis
+        run: composer analyse
 
       - name: Run tests
         run: composer test
 
       - name: Check 100% coverage for src
+        if: matrix.laravel-ai == '^0.2.6'
         run: composer test:coverage

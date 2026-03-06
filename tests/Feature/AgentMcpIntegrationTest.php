@@ -72,18 +72,28 @@ final class AgentMcpIntegrationTest extends TestCase
         $mcpClient->callResultsByKey['http://mcp.test/n8n|run_workflow'] = 'workflow started';
         $this->app->instance(McpClient::class, $mcpClient);
 
-        $responses = [
-            $this->openAiToolCallResponse(),
-            $this->openAiFinalResponse(),
-        ];
-
         $capturedPayloads = [];
         $requestIndex = 0;
 
-        Http::fake(function (HttpRequest $request) use (&$capturedPayloads, &$requestIndex, $responses) {
-            $capturedPayloads[] = json_decode($request->body(), true);
+        Http::fake(function (HttpRequest $request) use (&$capturedPayloads, &$requestIndex) {
+            $payload = json_decode($request->body(), true);
+            $capturedPayloads[] = $payload;
 
-            return Http::response($responses[$requestIndex++] ?? end($responses), 200);
+            if ($requestIndex++ === 0) {
+                $toolNames = array_values(array_filter(array_map(
+                    static fn (mixed $tool): ?string => is_array($tool)
+                        ? ($tool['name'] ?? $tool['function']['name'] ?? null)
+                        : null,
+                    $payload['tools'] ?? [],
+                )));
+
+                return Http::response($this->openAiToolCallResponse(
+                    $toolNames[0] ?? 'GdocsSearchDocsTool',
+                    $toolNames[1] ?? 'N8nRunWorkflowTool',
+                ), 200);
+            }
+
+            return Http::response($this->openAiFinalResponse(), 200);
         });
 
         $agent = new IntegrationMcpAgent([
@@ -130,7 +140,7 @@ final class AgentMcpIntegrationTest extends TestCase
     /**
      * @return array<string, mixed>
      */
-    private function openAiToolCallResponse(): array
+    private function openAiToolCallResponse(string $gdocsToolName, string $n8nToolName): array
     {
         return [
             'id' => 'resp_1',
@@ -140,7 +150,7 @@ final class AgentMcpIntegrationTest extends TestCase
                     'id' => 'fc_1',
                     'type' => 'function_call',
                     'status' => 'completed',
-                    'name' => 'GdocsSearchDocsTool',
+                    'name' => $gdocsToolName,
                     'arguments' => '{"schema_definition":{"query":"laravel"}}',
                     'call_id' => 'call_1',
                 ],
@@ -148,7 +158,7 @@ final class AgentMcpIntegrationTest extends TestCase
                     'id' => 'fc_2',
                     'type' => 'function_call',
                     'status' => 'completed',
-                    'name' => 'N8nRunWorkflowTool',
+                    'name' => $n8nToolName,
                     'arguments' => '{"schema_definition":{"workflow_id":"wf-123"}}',
                     'call_id' => 'call_2',
                 ],
